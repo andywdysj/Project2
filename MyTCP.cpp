@@ -95,7 +95,19 @@ int MyTCP::handshake()
     return 0; //TODO: create different return values
 }
 
+/*
+ TODO: ACK handling; SR needs buffer for out of order ACKs
+ */
 
+void MyTCP::send()
+{
+    
+}
+
+void MyTCP::tear_down()
+{
+    
+}
 
 
 

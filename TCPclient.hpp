@@ -18,6 +18,11 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <netdb.h>
+#include <sys/un.h>
+#include <cstring>
+#include <string>
+#include <dirent.h>
+
 
 using namespace std;
 
@@ -25,13 +30,21 @@ class TCPclient
 {
 public:
     TCPclient(string host, int portno, string filename);
+    void init();
+    void recv();
     
 private:
     int m_sockfd;
     int m_portno;
     string m_host;
+    
     struct hostent *m_server;
-    struct sockaddr_in m_serv_addr;
+    struct sockaddr_in serv_addr;
+    socklen_t serv_addlen;
+    
+    uint16_t m_next_pkt;
+    uint16_t m_ack_num;
+    char rev_buffer[1500];
     
 };
 
