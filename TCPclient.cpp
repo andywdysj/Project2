@@ -15,7 +15,7 @@ TCPclient::TCPclient(string host, int portno, string filename)
 {
     m_portno = portno;
     
-    m_sockfd = socket(AF_INET, SOCK_STREAM, 0);  //create socket
+    m_sockfd = socket(AF_INET, SOCK_DGRAM, 0);  //create socket
     if (m_sockfd < 0)
     {
         cerr << "Error: failed to create new socket" << endl;
@@ -41,13 +41,6 @@ void TCPclient::handshake()
     memcpy((void *)&serv_addr.sin_addr, m_server->h_addr_list[0], m_server->h_length);
     
     serv_addlen = sizeof(serv_addr);
-
-    if((::connect(m_sockfd,(struct sockaddr *)&serv_addr, serv_addlen)) < 0)
-    {
-        cerr << "Error: connection failure." << endl;
-        exit(1);
-    }
-    
 
     //send initial SYN packet
     Packet pkt;
