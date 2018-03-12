@@ -85,11 +85,11 @@ void TCPclient::recv()
             continue;
         }
         
-        /*ignore for now
-        Packet rev_packet = Packet((Header*)rev_buffer, (Payload*)rev_buffer+8);
+        Payload pktdata(rev_buffer, rev_buffer+rev_len);
+        Packet rev_packet(pktdata);
         m_ack_num = rev_packet.get_seq_no();
         m_next_pkt = rev_packet.get_ack_no();
-        */
+        
         
         //send ACK
         Packet pkt;
@@ -127,12 +127,12 @@ void TCPclient::recv()
             }
         }
         
-        /*
+        
         if(rev_packet.is_FIN())
         {
-            do FIN-ACK procedure
+            exit(0);
         }
-        */
+
         
         cout << "Receiving Packet " << m_next_pkt << endl;
 
