@@ -7,17 +7,40 @@
 //
 
 #include <iostream>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <strings.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <pthread.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+#include "Packet.hpp"
+#include "TCPclient.hpp"
+
 using namespace std;
 
 int main(int argc, const char** argv)
 {
    
-    if (argc != 3)
+    if (argc != 4)
     {
         cerr << "Error: the number of parameters is incorrect" << endl;
         exit(0);
     }
     
+    string host = argv[1];
+    int port = atoi(argv[2]);
+    string filename = argv[3];
+    
     ////////////test
 
+    TCPclient client(host, port, filename);
+    client.handshake();
+    client.recv();
 }

@@ -35,6 +35,17 @@ Packet::Packet(Header* head_ptr, Payload* payload_ptr)
     //TODO: not sure if this is right, further tests needed
 }
 
+Packet::Packet(Payload &rcvData)
+{
+    m_header.SEQ_NO = rcvData[0] << 8 | rcvData[1];
+    m_header.ACK_NO = rcvData[2] << 8 | rcvData[3];
+    m_header.ACK = rcvData[4];
+    m_header.FIN = rcvData[5];
+    m_header.SYN = rcvData[6];
+    if(rcvData.size() > 7)
+        m_payload = vector<char>(rcvData.begin() + 7,rcvData.end());
+}
+
 Header* Packet::get_header()
 {
     return &(this->m_header);
@@ -101,5 +112,27 @@ Data_Package Packet::get_data_package()
     temp.data_header = this->m_header;
     temp.data_payload = this->m_payload;
     return temp;
+}
+
+Payload Packet::load_data()
+{
+    Payload result;
+    uint8_t first, last;
+    first = m_header.SEQ_NO >> 8;
+    last = m_header.SEQ_NO;
+    result.push_back(first);
+    result.push_back(last);
+    
+    first = m_header.ACK_NO >> 8;
+    last = m_header.ACK_NO;
+    result.push_back(first);
+    result.push_back(last);
+    
+    result.push_back(m_header.ACK);
+    result.push_back(m_header.FIN);
+    result.push_back(m_header.SYN);
+    
+    result.insert(result.end(), this->m_payload.begin(), this->m_payload.end());
+    return result;
 }
 

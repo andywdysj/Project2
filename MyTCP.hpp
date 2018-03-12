@@ -19,6 +19,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "Packet.hpp"
+#include "ServerWindow.hpp"
 using namespace std;
 
 class MyTCP
@@ -39,14 +41,15 @@ private:
     int m_sockfd;
     uint16_t m_seq_num;
     uint16_t m_ack_num;
-    const char* m_server_path;
+    const char* m_server_path = ".";
     DIR* m_server_dir_ptr;
     
     struct sockaddr_in myaddr;
     struct sockaddr_in client_addr;
     socklen_t client_addlen;
     
-    char rev_buffer[1500];
+    char rev_buffer[MAX_PKT_LEN];
+    ServerWindow send_buffer;
     
     uint16_t cwnd;
     uint16_t ssthresh;
