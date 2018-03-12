@@ -9,6 +9,7 @@
 #include "TCPclient.hpp"
 #include "Packet.hpp"
 
+using namespace std;
 
 TCPclient::TCPclient(string host, int portno, string filename)
 {
@@ -28,32 +29,48 @@ TCPclient::TCPclient(string host, int portno, string filename)
         exit(1);
     }
     
+    cerr << "Successful init!" << endl;
 }
 
-void TCPclient::init()
+void TCPclient::handshake()
 {
     memset((char *)&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_port = htons(m_portno);
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     memcpy((void *)&serv_addr.sin_addr, m_server->h_addr_list[0], m_server->h_length);
-
     
+    serv_addlen = sizeof(serv_addr);
+
+    if((::connect(m_sockfd,(struct sockaddr *)&serv_addr, serv_addlen)) < 0)
+    {
+        cerr << "Error: connection failure." << endl;
+        exit(1);
+    }
+    
+
     //send initial SYN packet
     Packet pkt;
     pkt.set_SYN(true);
-    Data_Package dpkt = pkt.get_data_package();
-    
-    //figure out how to send the packet
-    /*
-     if (sendto(m_sockfd, temppacket, strlen(temppacket), 0, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-     {
-        cerr << "Error: unable to send packet to server" << endl;
-        exit(1);
-     }
-     */
+    Payload InitPkt = pkt.load_data();
     
     cout << "Sending Packet SYN" << endl;
+    
+    while(true)
+    {
+         if (sendto(m_sockfd, InitPkt.data(), InitPkt.size(), 0, (struct sockaddr *)&serv_addr, serv_addlen) < 0)
+         {
+             cerr << "Error: SYN did not send, retrying..." << endl;
+             continue;
+         }
+         else
+         {
+             cerr << "SYN sent!" << endl;
+             break;
+         }
+    }
+    
+    cout << "Receiving Packet " << m_next_pkt << endl;
     
 }
 
@@ -64,49 +81,68 @@ void TCPclient::recv()
     
     while(true)
     {
-        cout << "Receiving Packet " << m_next_pkt << endl;
-        
-        rev_len = recvfrom(this->m_sockfd, rev_buffer, 1500, 0, (struct sockaddr*) &serv_addr, &serv_addlen); //receive packet
+        rev_len = ::recvfrom(this->m_sockfd, rev_buffer, 1500, 0, (struct sockaddr*) &serv_addr, &serv_addlen); //receive packet
         if(rev_len == -1)
         {
             cerr << "Error: unable to receive message from client." << endl;
             exit(1);
         }
+        else if(rev_len == 0)
+        {
+            continue;
+        }
         
+        /*ignore for now
         Packet rev_packet = Packet((Header*)rev_buffer, (Payload*)rev_buffer+8);
         m_ack_num = rev_packet.get_seq_no();
         m_next_pkt = rev_packet.get_ack_no();
+        */
         
+        //send ACK
         Packet pkt;
         pkt.set_ACK(true);
-        pkt.set_ack_no(m_ack_num);
-        Data_Package dpkt = pkt.get_data_package();
-        //send ACK; ACK number = SEQ number of received packet
+        pkt.set_ack_no(m_ack_num); //ACK number = SEQ number of received packet
+        //Data_Package dpkt = pkt.get_data_package();
+        Payload ACKpkt = pkt.load_data();
         
-        cout << "Sending Packet " << m_ack_num;
+        
+        cout << "Sending Packet " << m_ack_num << endl;
         
         /*
         if(packet is a retransmission)
         {
-            cout << " Retransmission\n";
+            cout << " Retransmission";
         }
         else if(rev_packet.is_FIN())
         {
-            cout << " FIN\n";
+            cout << " FIN";
         }
+        cout << "\n";
+        */
         
-         
-        if (sendto(m_sockfd, temppacket, strlen(temppacket), 0, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        while(true)
         {
-            cerr << "Error: unable to send packet to server" << endl;
-            exit(1);
+            if (sendto(m_sockfd, ACKpkt.data(), ACKpkt.size(), 0, (struct sockaddr *)&serv_addr, serv_addlen) < 0)
+            {
+                cerr << "Error: ACK did not send, retrying..." << endl;
+                continue;
+            }
+            else
+            {
+                cerr << "ACK sent!" << endl;
+                break;
+            }
         }
-         */
         
+        /*
         if(rev_packet.is_FIN())
         {
-            //do FIN-ACK procedure
+            do FIN-ACK procedure
         }
+        */
+        
+        cout << "Receiving Packet " << m_next_pkt << endl;
+
     }
 
 }

@@ -30,7 +30,7 @@ class TCPclient
 {
 public:
     TCPclient(string host, int portno, string filename);
-    void init();
+    void handshake();
     void recv();
     
 private:

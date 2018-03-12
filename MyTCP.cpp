@@ -6,8 +6,13 @@
 //  Copyright © 2018 Andrew. All rights reserved.
 //
 
+#include <string.h>
 #include "MyTCP.hpp"
 #include "Packet.hpp"
+#include "ServerWindow.hpp"
+#include <fstream>
+#include <sys/socket.h>
+
 using namespace std;
 
 MyTCP::MyTCP()
@@ -20,10 +25,9 @@ MyTCP::MyTCP()
 
 MyTCP::MyTCP(int port_num)
 {
-    string temp = ".";
     m_port_num = port_num;
-    m_server_path = temp.data();
     m_seq_num = rand()%MAX_SEQ_NUM;
+    cout << "my seq no is: " << m_seq_num << endl;
 }
 
 void MyTCP::init()
@@ -50,8 +54,11 @@ void MyTCP::init()
         cerr << "Error: cannot open directory: " << m_server_path << endl;
         exit(1);
     }
-    cout << "Server has been initialized!" << endl;
+    cout << "Server has be initialized!" << endl;
     //TODO: lots of things...
+    
+    //initiaze client addr addrlen
+    client_addlen = sizeof(client_addr);
 }
 
 int MyTCP::handshake()
@@ -59,8 +66,8 @@ int MyTCP::handshake()
     ssize_t rev_len = -1;
     while(true)
     {
-        memset(rev_buffer, 0, 1500);
-        rev_len = recvfrom(this->m_sockfd, rev_buffer, 1500, 0, (struct sockaddr*) &client_addr, &client_addlen);
+        memset(rev_buffer, 0, MAX_PKT_LEN);
+        rev_len = recvfrom(this->m_sockfd, rev_buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &client_addr, &client_addlen);
         if(rev_len == -1)
         {
             cerr << "Error: unable to receive messege from client." << endl;
@@ -69,7 +76,8 @@ int MyTCP::handshake()
         else if(rev_len == 0)
             continue;
         //construct a rev_packet
-        Packet rev_packet = Packet((Header*)rev_buffer, (Payload*)rev_buffer+8);
+        Payload mydata(rev_buffer, rev_buffer+rev_len);
+        Packet rev_packet(mydata);
         if(rev_packet.is_SYN())
         {
             m_ack_num = rev_packet.get_seq_no()+1;
@@ -89,25 +97,58 @@ int MyTCP::handshake()
     pkt.set_SYN(true);
     pkt.set_ack_no(m_ack_num);
     pkt.set_seq_no(m_seq_num);
-    Data_Package dpkt = pkt.get_data_package();
+    Payload SYNACK = pkt.load_data();
+    while(true)
+    {
+        if(sendto(m_sockfd, SYNACK.data(), SYNACK.size(), 0, (struct sockaddr*) &client_addr, client_addlen) < 0)
+        {
+            cerr << "Error: SYNACK sent failed" << endl;
+            continue;
+        }
+        else
+        {
+            cout << "SYNACK sent!" << endl;
+            break;
+        }
+    }
+    
+    //wait for receive first ack
+    rev_len = -1;
+    while(true)
+    {
+        memset(rev_buffer, 0, MAX_PKT_LEN);
+        rev_len = ::recvfrom(this->m_sockfd, rev_buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &client_addr, &client_addlen);
+        if(rev_len == -1)
+        {
+            cerr << "Error: unable to receive messege from client." << endl;
+            exit(1);
+        }
+        else if(rev_len == 0)
+            continue;
+        Payload mydata(rev_buffer, rev_buffer+rev_len);
+        Packet rev_packet(mydata);
+        if(rev_packet.is_ACK())
+        {
+            m_ack_num = rev_packet.get_seq_no()+rev_len+1;
+            send_buffer.read_file("Test.bin");
+            cout << "First ACK received, my ACK num is " << m_ack_num << ". Sending file..." << endl;
+            break;
+        }
+        else
+        {
+            cerr << "Error: This is not the first ACK pkt." << endl;
+            continue;
+        }
+        
+        
+    }
+    
     
     
     return 0; //TODO: create different return values
 }
 
-/*
- TODO: ACK handling; SR needs buffer for out of order ACKs
- */
 
-void MyTCP::send()
-{
-    
-}
-
-void MyTCP::tear_down()
-{
-    
-}
 
 
 
