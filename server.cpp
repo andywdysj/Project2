@@ -56,6 +56,30 @@ int main(int argc, const char * argv[])
     MyTCP server(port);
     server.init();
     server.handshake();
+    server.send();
+    
+    /*
+    
+    //test file chucking
+    deque<deque<Payload>>::iterator it = server.get_ServerWindow()->get_begin_queue_queue_iter();
+    deque<deque<Payload>>::iterator end = server.get_ServerWindow()->get_last_queue_queue_iter();
+    while(it != end)
+    {
+        deque<Payload>::iterator DPit = (*it).begin();
+        deque<Payload>::iterator DPit_end = (*it).end();
+        for(;DPit != DPit_end; DPit++)
+        {
+            Payload::iterator Pit = (*DPit).begin();
+            Payload::iterator Pit_end = (*DPit).end();
+            for(; Pit != Pit_end; Pit++)
+            {
+                cout << *Pit;
+            }
+            
+        }
+        it++;
+    }
+    */
     
     
     

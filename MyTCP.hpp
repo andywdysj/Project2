@@ -34,6 +34,8 @@ public:
     void send();
     void tear_down();
     
+    ServerWindow* get_ServerWindow(){return &send_buffer;}
+    
     
     
 private:

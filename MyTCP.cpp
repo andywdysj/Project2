@@ -12,8 +12,18 @@
 #include "ServerWindow.hpp"
 #include <fstream>
 #include <sys/socket.h>
+#include <unistd.h>
 
 using namespace std;
+
+//wait funciton for testing
+void wait ( double seconds )
+{
+    clock_t endwait;
+    endwait = clock () + seconds * CLOCKS_PER_SEC ;
+    while (clock() < endwait) {}
+}
+//wait funciton for testing
 
 MyTCP::MyTCP()
 {
@@ -131,7 +141,8 @@ int MyTCP::handshake()
         if(rev_packet.is_ACK())
         {
             m_ack_num = rev_packet.get_seq_no()+rev_len+1;
-            send_buffer.read_file("Test.bin");
+            cout << "Dummy test begins: " << endl;
+            send_buffer.read_file("big_ori.txt");
             cout << "First ACK received, my ACK num is " << m_ack_num << ". Sending file..." << endl;
             break;
         }
@@ -147,6 +158,42 @@ int MyTCP::handshake()
     
     
     return 0; //TODO: create different return values
+}
+
+void MyTCP::send()
+{
+    //TODO: send big file for now, need to adapt to other files too
+    //At this time, the big file has been chucked and put into m_queue_queue
+    int counter = 0;
+    while(!send_buffer.is_empty_queue_queue())
+    {
+        send_buffer.feed_m_queue_from_front();
+        while(!send_buffer.is_empty_m_queue())
+        {
+            Payload myPayload = send_buffer.get_begin_m_queue_pop();
+            Header* myHeader = new Header;
+            myHeader->SEQ_NO = 123;
+            myHeader->ACK_NO = 456;
+            Packet myPKT(myHeader, &myPayload);
+            Payload data = myPKT.load_data();
+            while(true)
+            {
+                wait(0.01); //wait for 0.01s, not overloading the client buffer
+                if(sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen) < 0)
+                {
+                    cerr << "Error: Normal data pkt sending failed" << endl;
+                    continue;
+                }
+                else
+                {
+                    cout << "Normal data pkt send! No." << counter << endl;
+                    counter++;
+                    break;
+                }
+            }
+        }
+        
+    }
 }
 
 
