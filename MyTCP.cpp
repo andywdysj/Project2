@@ -31,7 +31,6 @@ MyTCP::MyTCP()
     m_port_num = 2222; //by default
     m_server_path = temp.data();
     m_seq_num = rand()%MAX_SEQ_NUM;
-    memset(acked_array, 0, 20);
 }
 
 MyTCP::MyTCP(int port_num)
@@ -40,7 +39,6 @@ MyTCP::MyTCP(int port_num)
     //m_seq_num = rand()%MAX_SEQ_NUM;
     m_seq_num = 200;
     cout << "my seq no is: " << m_seq_num << endl;
-    memset(acked_array, 0, 20);
 }
 
 void MyTCP::init()
@@ -106,7 +104,6 @@ int MyTCP::handshake()
         }
     }
     //send back SYNACK
-    //TODO: update m_seq_num;
     Packet pkt;
     pkt.set_ACK(true);
     pkt.set_SYN(true);
@@ -172,13 +169,11 @@ void MyTCP::send()
     //TODO: send big file for now, need to adapt to other files too
     //At this time, the big file has been chucked and put into m_queue_queue
     //TODO: update seq and ack no!!!
-    int window_slot = 1;
     int counter = 0;
-    while(!send_buffer.is_empty_queue_queue() && window_slot != this->window)
+    while(!send_buffer.is_empty_queue_queue())
     {
-        if(send_buffer.is_empty_m_queue())
-            send_buffer.feed_m_queue_from_front();
-        while(!send_buffer.is_empty_m_queue() && window_slot != this->window)
+        send_buffer.feed_m_queue_from_front();
+        while(!send_buffer.is_empty_m_queue())
         {
             Payload myPayload = send_buffer.get_begin_m_queue_pop();
             Header* myHeader = new Header;
@@ -196,16 +191,12 @@ void MyTCP::send()
                 }
                 else
                 {
-                    clock_array[window_slot-1] = clock();
-                    payload_window.push_back(data);
                     cout << "Normal data pkt send! No." << counter << endl;
                     counter++;
-                    window_slot++;
                     break;
                 }
             }
         }
-        //all the pkts in the current window have been sent, server turns to listening state
         
     }
 }

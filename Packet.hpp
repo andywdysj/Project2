@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <cstdint>
 #include <sys/socket.h>
+#include <bitset>
 using namespace std;
 
 #define MAX_PKT_LEN 1024
@@ -24,6 +25,7 @@ using namespace std;
 #define RESTRANS_TIMEOUT 500 //ms
 
 typedef vector<char> Payload; //construct payload section by deviding payload into 1B block
+
 
 struct Header
 {
