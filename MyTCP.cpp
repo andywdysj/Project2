@@ -31,14 +31,16 @@ MyTCP::MyTCP()
     m_port_num = 2222; //by default
     m_server_path = temp.data();
     m_seq_num = rand()%MAX_SEQ_NUM;
+    memset(acked_array, 0, 20);
 }
 
 MyTCP::MyTCP(int port_num)
 {
     m_port_num = port_num;
     //m_seq_num = rand()%MAX_SEQ_NUM;
-    m_seq_num = 100;
+    m_seq_num = 200;
     cout << "my seq no is: " << m_seq_num << endl;
+    memset(acked_array, 0, 20);
 }
 
 void MyTCP::init()
@@ -92,8 +94,9 @@ int MyTCP::handshake()
         if(rev_packet.is_SYN())
         {
             m_ack_num = rev_packet.get_seq_no()+1;
-            cout << "[1]Step 1 of 3-way handshake: SYN from client received: " << rev_packet.get_seq_no() << endl;
-            cout << "[2]My ACK number is: " << m_ack_num << endl;
+            //cout << "[1]Step 1 of 3-way handshake: SYN from client received: " << rev_packet.get_seq_no() << endl;
+            //cout << "[2]My ACK number is: " << m_ack_num << endl;
+            cout << "Receive SYN " << rev_packet.get_seq_no() << endl;
             break;
         }
         else
@@ -103,6 +106,7 @@ int MyTCP::handshake()
         }
     }
     //send back SYNACK
+    //TODO: update m_seq_num;
     Packet pkt;
     pkt.set_ACK(true);
     pkt.set_SYN(true);
@@ -118,7 +122,8 @@ int MyTCP::handshake()
         }
         else
         {
-            cout << "SYNACK sent!" << endl;
+            cout << "Send SYNACK " << pkt.get_seq_no() << " " << pkt.get_ack_no() << endl;
+            //cout << "SYNACK sent!" << endl;
             break;
         }
     }
@@ -141,9 +146,11 @@ int MyTCP::handshake()
         if(rev_packet.is_ACK())
         {
             m_ack_num = rev_packet.get_seq_no()+rev_len+1;
+            //
+            cout << "Receive ACK " << rev_packet.get_seq_no() << " " << rev_packet.get_ack_no() << endl;
             cout << "Dummy test begins: " << endl;
-            send_buffer.read_file("big_ori.txt");
-            cout << "First ACK received, my ACK num is " << m_ack_num << ". Sending file..." << endl;
+            send_buffer.read_file("big.jpg");
+            //cout << "First ACK received, my ACK num is " << m_ack_num << ". Sending file..." << endl;
             break;
         }
         else
@@ -164,11 +171,14 @@ void MyTCP::send()
 {
     //TODO: send big file for now, need to adapt to other files too
     //At this time, the big file has been chucked and put into m_queue_queue
+    //TODO: update seq and ack no!!!
+    int window_slot = 1;
     int counter = 0;
-    while(!send_buffer.is_empty_queue_queue())
+    while(!send_buffer.is_empty_queue_queue() && window_slot != this->window)
     {
-        send_buffer.feed_m_queue_from_front();
-        while(!send_buffer.is_empty_m_queue())
+        if(send_buffer.is_empty_m_queue())
+            send_buffer.feed_m_queue_from_front();
+        while(!send_buffer.is_empty_m_queue() && window_slot != this->window)
         {
             Payload myPayload = send_buffer.get_begin_m_queue_pop();
             Header* myHeader = new Header;
@@ -186,14 +196,27 @@ void MyTCP::send()
                 }
                 else
                 {
+                    clock_array[window_slot-1] = clock();
+                    payload_window.push_back(data);
                     cout << "Normal data pkt send! No." << counter << endl;
                     counter++;
+                    window_slot++;
                     break;
                 }
             }
         }
+        //all the pkts in the current window have been sent, server turns to listening state
         
     }
+}
+
+void MyTCP::expecting_fin()
+{
+    
+    //send fin, expecting
+    
+    
+    
 }
 
 

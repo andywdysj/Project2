@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <list>
 #include "Packet.hpp"
 #include "ServerWindow.hpp"
 using namespace std;
@@ -32,11 +33,17 @@ public:
     void init();
     int handshake();
     void send();
-    void tear_down();
+    void expecting_fin();
     
     ServerWindow* get_ServerWindow(){return &send_buffer;}
     
-    
+    clock_t* get_clock_array(){return clock_array;}
+    int get_window_size(){return window;};
+    Payload get_ith_payload_window(int i){return payload_window[i];}
+    int get_sockfd(){return m_sockfd;}
+    struct sockaddr_in* get_client_addr(){return &client_addr;}
+    socklen_t  get_client_addlen(){return client_addlen;}
+    int* get_acked_array(){return acked_array;}
     
 private:
     int m_port_num;
@@ -55,6 +62,11 @@ private:
     
     uint16_t cwnd;
     uint16_t ssthresh;
+    
+    int window = 5;
+    vector<Payload> payload_window;
+    clock_t clock_array[20];
+    int acked_array[20];
     
 };
 

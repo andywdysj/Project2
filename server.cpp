@@ -25,6 +25,62 @@
 #include "ServerWindow.hpp"
 using namespace std;
 
+#define NUM_THREADS 5
+
+mutex lock1;
+mutex lock2;
+
+void* check_clock_and_resend(void* srv)
+{
+    while(true) //TODO: need to be changed
+    {
+        MyTCP* server = (MyTCP*)srv;
+        lock1.lock();
+        clock_t* clocks = server->get_clock_array();
+        int window_size = server->get_window_size();
+        lock1.unlock();
+        for(int i=0; i<window_size; i++)
+        {
+            lock1.lock();
+            clock_t t = clocks[i];
+            lock1.unlock();
+            t = clock() - t;
+            if((float)t >= 500.00)
+            {
+                //resend i pkt
+                //TODO: lock
+                lock1.lock();
+                Payload p = server->get_ith_payload_window(i);
+                lock1.unlock();
+                //sendto(m_sockfd, SYNACK.data(), SYNACK.size(), 0, (struct sockaddr*) &client_addr, client_addlen)
+                while(true)
+                {
+                    if(sendto(server->get_sockfd(), p.data(), p.size(), 0, (struct sockaddr*)server->get_client_addr(), server->get_client_addlen()) < 0)
+                    {
+                        cerr << "Resend failed." << endl;
+                        continue;
+                    }
+                    else
+                    {
+                        cout << "Resend successed." << endl;
+                        break;
+                    }
+                }
+            }
+            
+        }
+    }
+}
+
+/*
+void* update_ack_list(void* srv)
+{
+    MyTCP* server = (MyTCP*)srv;
+    int* ack_arr = server->get_acked_array();
+    
+}
+*/
+
 int main(int argc, const char * argv[])
 {
     //commented for testing
@@ -52,11 +108,15 @@ int main(int argc, const char * argv[])
         exit(1);
     }
      */
+    pthread_t threads1;
+    pthread_t threads2;
+    
     int port = 2222;
     MyTCP server(port);
     server.init();
     server.handshake();
     server.send();
+    server.expecting_fin();
     
     /*
     
