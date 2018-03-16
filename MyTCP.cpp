@@ -14,6 +14,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define WINDOW_SIZE 5
+
+uint16_t total_pkt = 0;
+
 using namespace std;
 
 //wait funciton for testing
@@ -95,6 +99,12 @@ int MyTCP::handshake()
             //cout << "[1]Step 1 of 3-way handshake: SYN from client received: " << rev_packet.get_seq_no() << endl;
             //cout << "[2]My ACK number is: " << m_ack_num << endl;
             cout << "Receive SYN " << rev_packet.get_seq_no() << endl;
+            auto i=rev_packet.get_payload()->begin();
+            auto end = rev_packet.get_payload()->end();
+            for(; i!=end; i++)
+                m_requested_file += *i;
+            if(m_requested_file == "")
+                m_requested_file = "404.html";
             break;
         }
         else
@@ -103,12 +113,27 @@ int MyTCP::handshake()
             continue;
         }
     }
-    //send back SYNACK
-    Packet pkt;
-    pkt.set_ACK(true);
-    pkt.set_SYN(true);
-    pkt.set_ack_no(m_ack_num);
-    pkt.set_seq_no(m_seq_num);
+    //send back SYNACK, read and chuck the file requested
+    
+    send_buffer.read_file(m_requested_file);
+    //send_buffer.read_file("big_ori.txt");
+    // load real data client wants
+    Header header;
+    header.ACK = true;
+    header.SYN = true;
+    header.ACK_NO = m_ack_num;
+    header.SEQ_NO = m_seq_num;
+    Payload* temp = new Payload;
+    
+    for(auto i=send_buffer.get_begin_queue_queue_iter(); i!=send_buffer.get_last_queue_queue_iter(); i++)
+        total_pkt += (*i).size();
+    //uint16_t total_pkt = 26;
+    uint8_t head, tail;
+    head = total_pkt >> 8;
+    tail = total_pkt;
+    (*temp).push_back(head);
+    (*temp).push_back(tail);
+    Packet pkt(&header, temp);
     Payload SYNACK = pkt.load_data();
     while(true)
     {
@@ -146,7 +171,7 @@ int MyTCP::handshake()
             //
             cout << "Receive ACK " << rev_packet.get_seq_no() << " " << rev_packet.get_ack_no() << endl;
             cout << "Dummy test begins: " << endl;
-            send_buffer.read_file("big.jpg");
+            //send_buffer.read_file("big.txt");
             //cout << "First ACK received, my ACK num is " << m_ack_num << ". Sending file..." << endl;
             break;
         }
@@ -170,20 +195,26 @@ void MyTCP::send()
     //At this time, the big file has been chucked and put into m_queue_queue
     //TODO: update seq and ack no!!!
     int counter = 0;
-    while(!send_buffer.is_empty_queue_queue())
+    int window_counter = 1;
+    int switcher = 0;
+    send_buffer.feed_m_queue_from_front();
+    while(counter != total_pkt) //!send_buffer.is_empty_queue_queue()
     {
-        send_buffer.feed_m_queue_from_front();
-        while(!send_buffer.is_empty_m_queue())
+        while(!(send_buffer.get_size_m_queue() == 0) && window_counter <= WINDOW_SIZE) //&& window_counter <= WINDOW_SIZE
         {
+            int k = send_buffer.get_size_m_queue();
             Payload myPayload = send_buffer.get_begin_m_queue_pop();
             Header* myHeader = new Header;
-            myHeader->SEQ_NO = 123;
+            myHeader->SEQ_NO = window_counter;
             myHeader->ACK_NO = 456;
             Packet myPKT(myHeader, &myPayload);
             Payload data = myPKT.load_data();
+            if(switcher == 0)
+            {
+                
+            }
             while(true)
             {
-                wait(0.01); //wait for 0.01s, not overloading the client buffer
                 if(sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen) < 0)
                 {
                     cerr << "Error: Normal data pkt sending failed" << endl;
@@ -191,24 +222,155 @@ void MyTCP::send()
                 }
                 else
                 {
+                    //push into deque and start timer
+                    m_payload_window.push_back(data);
+                    //m_timer[window_counter-1] = clock();
                     cout << "Normal data pkt send! No." << counter << endl;
                     counter++;
+                    //test//
+                    if(counter == 6380)
+                        cout << " " << endl;
+                    window_counter++;
                     break;
                 }
             }
         }
+        //get out either send buffer is empty, or window counter == 5
+        if(send_buffer.is_empty_m_queue())
+        {
+            if(send_buffer.is_empty_queue_queue())
+                continue;
+            send_buffer.feed_m_queue_from_front();
+            continue;
+        }
+        //server turns into listening state
+        int expected = 0;
+        clock_t t = clock();
+        while(true)//
+        {
+            float time = (float)t/CLOCKS_PER_SEC;
+            if(time > 600)
+            {
+                deque<Payload>::iterator it = m_payload_window.begin();
+                for(; it!=m_payload_window.end(); it++)
+                {
+                    Payload data = *it;
+                    while(true)
+                    {
+                        if(sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen) < 0)
+                        {
+                            cerr << "Error: Normal data pkt sending failed" << endl;
+                            continue;
+                        }
+                        else
+                        {
+                            cout << "Normal data pkt RESEND!" << endl;
+                            break;
+                        }
+                    }
+                }
+            }
+            ssize_t rev_len = -1;
+            memset(rev_buffer, 0, MAX_PKT_LEN);
+            //listen to port
+            //
+            if((rev_len = recvfrom(m_sockfd, rev_buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &client_addr, &client_addlen)) < 0)
+            {
+                cerr << "Error: error receiving data." << endl;
+                continue;
+            }
+            //construct a pkt
+            Payload mydata(rev_buffer, rev_buffer+rev_len);
+            Packet rev_packet(mydata);
+            if(rev_packet.is_ACK())
+            {
+                //do stuff...
+                window_counter = 1;
+                m_payload_window.clear();
+                //expected = 1;
+                
+                break;
+                //uint16_t ack_no = rev_packet.get_ack_no();
+                //int num_of_payload;
+            }
+            else
+            {
+                cout << "Not an ACK." << endl;
+                continue;
+            }
+            
+        }
         
+    //biggest while loop
     }
 }
 
 void MyTCP::expecting_fin()
 {
-    
-    //send fin, expecting
+    ssize_t rev_len = 0;
+    if((rev_len = recvfrom(m_sockfd, rev_buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &client_addr, &client_addlen)) < 0)
+        cerr << "Error: error receiving data." << endl;
     
     
     
 }
+/*
+ while(true)//
+ {
+ float time = (float)t/CLOCKS_PER_SEC;
+ if(time > 0.5)
+ {
+ deque<Payload>::iterator it = m_payload_window.begin();
+ for(; it!=m_payload_window.end(); it++)
+ {
+ Payload data = *it;
+ while(true)
+ {
+ if(sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen) < 0)
+ {
+ cerr << "Error: Normal data pkt sending failed" << endl;
+ continue;
+ }
+ else
+ {
+ cout << "Normal data pkt RESEND!" << endl;
+ break;
+ }
+ }
+ }
+ }
+ ssize_t rev_len = -1;
+ memset(rev_buffer, 0, MAX_PKT_LEN);
+ //listen to port
+ //
+ if((rev_len = recvfrom(m_sockfd, rev_buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &client_addr, &client_addlen)) < 0)
+ {
+ cerr << "Error: error receiving data." << endl;
+ continue;
+ }
+ //construct a pkt
+ Payload mydata(rev_buffer, rev_buffer+rev_len);
+ Packet rev_packet(mydata);
+ if(rev_packet.is_ACK())
+ {
+ //do stuff...
+ window_counter = 1;
+ m_payload_window.clear();
+ //expected = 1;
+ 
+ break;
+ //uint16_t ack_no = rev_packet.get_ack_no();
+ //int num_of_payload;
+ }
+ else
+ {
+ cout << "Not an ACK." << endl;
+ continue;
+ }
+ 
+ }
+ 
+ */
 
 
 

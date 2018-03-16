@@ -16,9 +16,27 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <fstream>
+#include <list>
 
 int sockfd;
 struct sockaddr_in serveraddr;
+
+bool compare_function(const Payload &lhs, const Payload &rhs)
+{
+    uint8_t first, last;
+    first = lhs[0];
+    last = lhs[1];
+    uint16_t lhs_seq_no = first << 8 | last;
+    
+    first = rhs[0];
+    last = rhs[1];
+    uint16_t rhs_seq_no = first << 8 | last;
+    
+    if(lhs_seq_no < rhs_seq_no)
+        return true;
+    
+    return false;
+}
 
 void send_fin()
 {
@@ -43,6 +61,15 @@ void send_fin()
     }
 }
 
+bool is_pkt_already_received(int array[], Packet* p)
+{
+    uint16_t seq = p->get_seq_no();
+    if(array[seq-1] == 1)
+        return true;
+    else
+        return false;
+}
+
 
 int main(int argc, const char * argv[])
 {
@@ -54,10 +81,15 @@ int main(int argc, const char * argv[])
     }
     */
     //construct a client
+    int check_array[20];
+    for(int i=0; i<20; i++)
+        check_array[i] = 0;
+    uint16_t total_pkt_num;
+    list<Payload> payload_list;
     char buffer[MAX_PKT_LEN];
-    const char* hostname = argv[1];
-    int port = atoi(argv[2]);
-    const char* filename = "Test.txt";
+    const char* hostname = "127.0.0.1";
+    int port = 2222;
+    char filename[50] = "big_ori.txt"; //can be changed
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(sockfd < 0)
     {
@@ -89,6 +121,11 @@ int main(int argc, const char * argv[])
     Packet SYN;
     SYN.set_SYN(true);
     SYN.set_seq_no(SEQ_NUM);
+    Payload* ip = SYN.get_payload();
+    
+    for(int i=0; i<strlen(filename); i++)
+        (*ip).push_back(filename[i]);
+    
     Payload SYN_payload = SYN.load_data();
     
     //test only .
@@ -121,6 +158,15 @@ int main(int argc, const char * argv[])
         Packet pkt(receive);
         if(pkt.is_SYN() && pkt.is_ACK())
         {
+            Payload temp = *(pkt.get_payload());
+            uint8_t head, tail;
+            head = temp[0];
+            tail = temp[1];
+            total_pkt_num = head << 8 | tail;
+            
+            cout << "total pkt are: " << total_pkt_num << endl;
+            
+            
             cout << "[!]Received SYNACK pkt, Seq is: " << pkt.get_seq_no() << endl;
             cout << "[!]Received SYNACK pkt, Ack is: " << pkt.get_ack_no() << endl;
             ACK_NUM = pkt.get_seq_no() + 1;
@@ -152,8 +198,12 @@ int main(int argc, const char * argv[])
     //now expecting normal pkts for big file
     //write to a file in dir called received.txt
     FILE * pFile;
-    while(true)
+    int received = 1;
+    uint16_t num_of_pkt = 0;
+    while(num_of_pkt != total_pkt_num)
     {
+        if(num_of_pkt == 6374)
+            cout << "" << endl;
         memset(buffer, 0, MAX_PKT_LEN);
         long rcv_len = -1;
         if((rcv_len = recvfrom(sockfd, buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &serveraddr, &addrlen)) < 0)
@@ -161,23 +211,126 @@ int main(int argc, const char * argv[])
             cerr << "Error: error receiving data." << endl;
             continue;
         }
-        Payload data(buffer, buffer+rcv_len);
-        Packet dataPKT(data);
-        //test only
-        Payload* P = dataPKT.get_payload();
-        
-        char c;
-        pFile=fopen("receive.jpg","a+b");
-        Payload::iterator it = P->begin();
-        for(; it != P->end(); it++)
+        Payload raw_data(buffer, buffer+rcv_len);
+        //examine if the pkt receive is a dup
+        Packet exam(raw_data);
+        bool in = is_pkt_already_received(check_array, &exam);
+        if(in == true)
+            continue;
+        else
         {
-            c = *it;
-            putc(c, pFile);
+            check_array[exam.get_seq_no()-1] = 1;
+            payload_list.push_back(raw_data);
+            received++;
+            num_of_pkt++;
+            if(received == 5+1 || num_of_pkt == total_pkt_num)
+            {
+                //reorder
+                payload_list.sort(compare_function);
+                Packet ACK;
+                ACK.set_ACK(true);
+                Payload ACKdata = ACK.load_data();
+                if(sendto(sockfd, ACKdata.data(), ACKdata.size(), 0, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0)
+                {
+                    cerr << "Error: Normal ACK sending final ack." << endl;
+                    return -1;
+                }
+                cout << "Normal ack sent!" << endl;
+                received = 1;
+            }
+            else
+            {
+                continue;
+            }
+
         }
-        fclose(pFile);
+            
+        for(list<Payload>::iterator iti = payload_list.begin(); iti!=payload_list.end(); iti++)
+        {
+            Packet dataPKT(payload_list.front());
+            payload_list.pop_front();
+            Payload* P = dataPKT.get_payload();
+            
+            char c;
+            pFile=fopen("receive.txt","a+b");
+            Payload::iterator it = P->begin();
+            for(; it != P->end(); it++)
+            {
+                c = *it;
+                putc(c, pFile);
+            }
+            fclose(pFile);
+        }
+        //zero the check array
+        for(int i=0; i<20; i++)
+            check_array[i] = 0;
+        
         //test only
     }
-    //fclose(pFile);
+    
+    //client terminates the connection
+    Packet fin;
+    fin.set_FIN(true);
+    Payload FIN = fin.load_data();
+    //TODO: seq no and so
+    int times = 0;
+    while(true)
+    {
+        if(times == 1)
+            break;
+        if(sendto(sockfd, FIN.data(), FIN.size(), 0, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0)
+        {
+            cout << "FIN sent failure" << endl;
+            continue;
+        }
+        ssize_t len_of_receive = 0;
+        
+        clock_t timer = clock();
+        while(((clock()-timer)/CLOCKS_PER_SEC) <= 0.5 && times == 0)
+        {
+            if((len_of_receive = recvfrom(sockfd, buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &serveraddr, &addrlen)) < 0)
+            {
+                cout << "error receiving ACK" << endl;
+                continue;
+            }
+            else
+            {
+                Payload received(buffer, buffer+len_of_receive);
+                Packet finack(received);
+                if(finack.is_ACK())
+                {
+                    times = 1;
+                    break;
+                }
+            }
+        }
+        
+    }
+    
+    //expect fin
+    times = 0;
+    while(true)
+    {
+        ssize_t len_of_receive = 0;
+        if((len_of_receive = recvfrom(sockfd, buffer, MAX_PKT_LEN, 0, (struct sockaddr*) &serveraddr, &addrlen)) < 0)
+        {
+            cout << "error receiving FIN" << endl;
+            continue;
+        }
+        else
+        {
+            Payload received(buffer, buffer+len_of_receive);
+            Packet finack(received);
+            if(finack.is_FIN())
+                break;
+        }
+    }
+    
+    //send ACK
+    Packet FinalACK;
+    FinalACK.set_ACK(true);
+    if(sendto(sockfd, FIN.data(), FIN.size(), 0, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0)
+        cout << "FIN sent failure" << endl;
     
     
     

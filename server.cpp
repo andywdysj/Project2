@@ -85,6 +85,65 @@ int main(int argc, const char * argv[])
     
     
     return 0;
+    /*/*
+     Payload a = send_buffer.get_begin_m_queue_pop();
+     Header* aH = new Header;
+     aH->SEQ_NO = 1;
+     Packet aP(aH, &a);
+     Payload aS = aP.load_data();
+     
+     Payload b = send_buffer.get_begin_m_queue_pop();
+     Header* bH = new Header;
+     bH->SEQ_NO = 2;
+     Packet bP(bH, &b);
+     Payload bS = bP.load_data();
+     
+     
+     Payload c = send_buffer.get_begin_m_queue_pop();
+     Header* cH = new Header;
+     cH->SEQ_NO = 3;
+     Packet cP(cH, &c);
+     Payload cS = cP.load_data();
+     
+     
+     Payload d = send_buffer.get_begin_m_queue_pop();
+     Header* dH = new Header;
+     dH->SEQ_NO = 4;
+     Packet dP(dH, &d);
+     Payload dS = dP.load_data();
+     
+     
+     Payload e = send_buffer.get_begin_m_queue_pop();
+     Header* eH = new Header;
+     eH->SEQ_NO = 5;
+     Packet eP(eH, &e);
+     Payload eS = eP.load_data();
+     
+     vector<Payload> pv;
+     pv.push_back(bS); //2
+     pv.push_back(cS); //3
+     pv.push_back(eS); //5
+     pv.push_back(aS); //1
+     pv.push_back(dS); //4
+     
+     Payload data = pv[0];
+     sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen);
+     
+     data = pv[1];
+     sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen);
+     
+     data = pv[2];
+     sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen);
+     
+     data = pv[3];
+     sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen);
+     
+     data = pv[4];
+     sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen);
+     
+     data = pv[4];
+     sendto(m_sockfd, data.data(), data.size(), 0, (struct sockaddr*) &client_addr, client_addlen);
+     */
     
     
 }

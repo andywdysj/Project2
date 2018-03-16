@@ -36,6 +36,8 @@ public:
     
     ServerWindow* get_ServerWindow(){return &send_buffer;}
     
+    int get_window_size(){return m_window_size;}
+    
     
     
 private:
@@ -46,6 +48,8 @@ private:
     const char* m_server_path = ".";
     DIR* m_server_dir_ptr;
     
+    string m_requested_file = "";
+    
     struct sockaddr_in myaddr;
     struct sockaddr_in client_addr;
     socklen_t client_addlen;
@@ -55,6 +59,11 @@ private:
     
     uint16_t cwnd;
     uint16_t ssthresh;
+    
+    int m_window_size = 5;
+    deque<Payload> m_payload_window;
+    clock_t m_timer[50];
+    int m_acked_array[50];
     
 };
 

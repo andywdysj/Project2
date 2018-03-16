@@ -6,6 +6,7 @@
 //  Copyright © 2018 Andrew. All rights reserved.
 //
 
+#include <iostream>
 #include "Packet.hpp"
 using namespace std;
 
@@ -38,6 +39,8 @@ Packet::Packet(Header* head_ptr, Payload* payload_ptr)
 Packet::Packet(Payload &rcvData)
 {
     uint8_t first, last;
+    if(&rcvData == NULL)
+        first = 0;
     first = rcvData[0];
     last = rcvData[1];
     uint16_t temp = first << 8 | last;
@@ -51,6 +54,7 @@ Packet::Packet(Payload &rcvData)
     m_header.ACK = rcvData[4];
     m_header.FIN = rcvData[5];
     m_header.SYN = rcvData[6];
+
     if(rcvData.size() > 7)
         m_payload = vector<char>(rcvData.begin() + 7,rcvData.end());
 }
